@@ -18,6 +18,7 @@ public:
     void sendTCP(String message);
     bool isConnected;
     IPAddress myIP;
+    unsigned long lastWifiCheck = 0;
 };
 
 extern ServerManager_ &ServerManager;

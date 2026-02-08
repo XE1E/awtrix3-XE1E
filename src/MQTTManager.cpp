@@ -80,6 +80,12 @@ void processMqttMessage(const String &strTopic, const String &payloadCopy)
         return;
     }
 
+    if (strTopic.equals(MQTT_PREFIX + "/reorder"))
+    {
+        DisplayManager.updateAppVector(payloadCopy.c_str());
+        return;
+    }
+
     if (strTopic.equals(MQTT_PREFIX + "/switch"))
     {
         DisplayManager.switchToApp(payloadCopy.c_str());
@@ -391,6 +397,7 @@ void onMqttConnected()
         "/doupdate",
         "/nextapp",
         "/apps",
+        "/reorder",
         "/power",
         "/sleep",
         "/indicator1",

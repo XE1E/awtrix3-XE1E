@@ -207,7 +207,8 @@ void addHandler()
 void ServerManager_::setup()
 {
     esp_wifi_set_max_tx_power(80); // 82 * 0.25 dBm = 20.5 dBm
-    esp_wifi_set_ps(WIFI_PS_NONE); // Power Saving deaktivieren
+    wifi_country_t wifi_country = {.cc = "CN", .schan = 1, .nchan = 13, .policy = WIFI_COUNTRY_POLICY_AUTO};
+    esp_wifi_set_country(&wifi_country);
     if (!local_IP.fromString(NET_IP) || !gateway.fromString(NET_GW) || !subnet.fromString(NET_SN) || !primaryDNS.fromString(NET_PDNS) || !secondaryDNS.fromString(NET_SDNS))
         NET_STATIC = false;
     if (NET_STATIC)
@@ -216,6 +217,7 @@ void ServerManager_::setup()
     }
     WiFi.setHostname(HOSTNAME.c_str()); // define hostname
     myIP = mws.startWiFi(AP_TIMEOUT * 1000, HOSTNAME.c_str(), "12345678");
+    esp_wifi_set_ps(WIFI_PS_NONE); // Power Saving deaktivieren
     isConnected = !(myIP == IPAddress(192, 168, 4, 1));
     if (DEBUG_MODE)
         DEBUG_PRINTF("My IP: %d.%d.%d.%d", myIP[0], myIP[1], myIP[2], myIP[3]);
@@ -279,6 +281,22 @@ void ServerManager_::setup()
 
 void ServerManager_::tick()
 {
+    if (!AP_MODE && (millis() - lastWifiCheck > 30000))
+    {
+        lastWifiCheck = millis();
+        if (WiFi.status() != WL_CONNECTED)
+        {
+            isConnected = false;
+            if (DEBUG_MODE)
+                DEBUG_PRINTLN(F("WiFi connection lost. Reconnecting..."));
+            WiFi.reconnect();
+        }
+        else
+        {
+            isConnected = true;
+        }
+    }
+
     mws.run();
 
     if (!AP_MODE)

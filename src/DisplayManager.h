@@ -100,6 +100,9 @@ public:
     void setTextColor(uint32_t color);
     void matrixPrint(double number, uint8_t digits);
     void setCustomAppColors(uint32_t color);
+    void saveAppLoop();
+    void loadAppLoop();
+    std::vector<String> appLoopConfig;
 };
 
 extern DisplayManager_ &DisplayManager;

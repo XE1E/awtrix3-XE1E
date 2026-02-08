@@ -220,7 +220,6 @@ IPAddress FSWebServer::startWiFi(uint32_t timeout, const char *apSSID, const cha
     else
         setAPmode("ESP_AP", "123456789");
 
-    WiFi.begin();
     ip = WiFi.softAPIP();
     Serial.print(F("\nAP mode.\nServer IP address: "));
     Serial.println(ip);
@@ -409,7 +408,7 @@ void FSWebServer::handleScanNetworks()
 {
     String jsonList = "[";
     DebugPrint("Scanning WiFi networks...");
-    int n = WiFi.scanNetworks();
+    int n = WiFi.scanNetworks(false, true);
     DebugPrintln(" complete.");
     if (n == 0)
     {

@@ -64,6 +64,8 @@ DisplayManager_ &DisplayManager_::getInstance()
 
 DisplayManager_ &DisplayManager = DisplayManager.getInstance();
 
+void SafePlaceholder(FastLED_NeoMatrix *matrix, MatrixDisplayUiState *state, int16_t x, int16_t y, GifPlayer *gifPlayer);
+
 void DisplayManager_::setBrightness(int bri)
 {
   bool wakeup;
@@ -282,53 +284,75 @@ void DisplayManager_::GradientText(int16_t x, int16_t y, const char *text, int c
 
 void pushCustomApp(String name, int position)
 {
-  if (customApps.count(name) == 0)
+  int availableCallbackIndex = -1;
+
+  for (int i = 0; i < 20; ++i)
   {
-    int availableCallbackIndex = -1;
+    bool callbackUsed = false;
 
-    for (int i = 0; i < 20; ++i)
+    for (const auto &appPair : Apps)
     {
-      bool callbackUsed = false;
-
-      for (const auto &appPair : Apps)
+      if (appPair.second == customAppCallbacks[i])
       {
-        if (appPair.second == customAppCallbacks[i])
-        {
-          callbackUsed = true;
-          break;
-        }
-      }
-
-      if (!callbackUsed)
-      {
-        availableCallbackIndex = i;
+        callbackUsed = true;
         break;
       }
     }
 
-    if (availableCallbackIndex == -1)
+    if (!callbackUsed)
     {
-      if (DEBUG_MODE)
-        DEBUG_PRINTLN(F("Error adding custom app -> Maximum number of custom apps reached"));
-      return;
+      availableCallbackIndex = i;
+      break;
     }
-
-    if (position < 0) // Insert at the end of the vector
-    {
-      Apps.push_back(std::make_pair(name, customAppCallbacks[availableCallbackIndex]));
-    }
-    else if (position < Apps.size()) // Insert at a specific position
-    {
-      Apps.insert(Apps.begin() + position, std::make_pair(name, customAppCallbacks[availableCallbackIndex]));
-    }
-    else // Invalid position, Insert at the end of the vector
-    {
-      Apps.push_back(std::make_pair(name, customAppCallbacks[availableCallbackIndex]));
-    }
-
-    ui->setApps(Apps); // Add Apps
-    DisplayManager.getInstance().setAutoTransition(true);
   }
+
+  if (availableCallbackIndex == -1)
+  {
+    if (DEBUG_MODE)
+      DEBUG_PRINTLN(F("Error adding custom app -> Maximum number of custom apps reached"));
+    return;
+  }
+
+  // Check if app already exists in active loop
+  auto activeIt = std::find_if(Apps.begin(), Apps.end(), [&](const std::pair<String, AppCallback> &a)
+                               { return a.first == name; });
+
+  if (activeIt != Apps.end())
+  {
+    activeIt->second = customAppCallbacks[availableCallbackIndex];
+    ui->setApps(Apps);
+    DisplayManager.saveAppLoop();
+    DisplayManager.getInstance().setAutoTransition(true);
+    return;
+  }
+
+  // If not active, find its spot based on the master config
+  auto configIt = std::find(DisplayManager.appLoopConfig.begin(), DisplayManager.appLoopConfig.end(), name);
+
+  if (configIt != DisplayManager.appLoopConfig.end())
+  {
+    int insertIdx = 0;
+    for (auto it = DisplayManager.appLoopConfig.begin(); it != configIt; ++it)
+    {
+      String prevName = *it;
+      if (std::find_if(Apps.begin(), Apps.end(), [&](const std::pair<String, AppCallback> &a)
+                       { return a.first == prevName; }) != Apps.end())
+      {
+        insertIdx++;
+      }
+    }
+    Apps.insert(Apps.begin() + insertIdx, std::make_pair(name, customAppCallbacks[availableCallbackIndex]));
+  }
+  else
+  {
+    // Brand new app
+    Apps.push_back(std::make_pair(name, customAppCallbacks[availableCallbackIndex]));
+    DisplayManager.appLoopConfig.push_back(name);
+  }
+
+  ui->setApps(Apps);
+  DisplayManager.saveAppLoop();
+  DisplayManager.getInstance().setAutoTransition(true);
 }
 
 bool deleteCustomAppFile(const String &name)
@@ -389,8 +413,25 @@ void removeCustomAppFromApps(const String &name, bool setApps)
     }
   }
 
+  // Remove from appLoopConfig
+  auto configIt = DisplayManager.appLoopConfig.begin();
+  while (configIt != DisplayManager.appLoopConfig.end())
+  {
+    if (configIt->startsWith(name))
+    {
+      configIt = DisplayManager.appLoopConfig.erase(configIt);
+    }
+    else
+    {
+      ++configIt;
+    }
+  }
+
   if (setApps)
+  {
     ui->setApps(Apps);
+    DisplayManager.saveAppLoop();
+  }
   DisplayManager.getInstance().setAutoTransition(true);
   deleteCustomAppFile(name);
   DisplayManager.setAppTime(TIME_PER_APP);
@@ -1068,6 +1109,7 @@ void DisplayManager_::loadCustomApps()
 
     file = root.openNextFile();
   }
+  loadAppLoop();
 }
 
 void DisplayManager_::loadNativeApps()
@@ -1559,7 +1601,7 @@ void DisplayManager_::updateAppVector(const char *json)
     DEBUG_PRINTLN(F("New apps vector received"));
   if (DEBUG_MODE)
     DEBUG_PRINTLN(json);
-  DynamicJsonDocument doc(2048);
+  DynamicJsonDocument doc(4096);
   DeserializationError error = deserializeJson(doc, json);
   if (error)
   {
@@ -1581,52 +1623,83 @@ void DisplayManager_::updateAppVector(const char *json)
     appArray = doc.as<JsonArray>();
   }
 
+  // 1. Create a pool of all currently known apps (Native + Custom)
+  std::vector<std::pair<String, AppCallback>> appPool;
+  
+  // Start with Native Apps
+  const char* nativeNames[] = {"Time", "Date", "Temperature", "Humidity", "Battery"};
+  for (const char* n : nativeNames) {
+      auto native = getNativeAppByName(n);
+      if (native.second != nullptr) appPool.push_back(native);
+  }
+  
+  // Add all currently active Custom Apps from the current loop
+  for (const auto& app : Apps) {
+      bool isNative = false;
+      for (const char* n : nativeNames) { if (app.first == n) isNative = true; }
+      if (!isNative) {
+          // Check if already in pool (avoid duplicates in pool)
+          if (std::find_if(appPool.begin(), appPool.end(), [&](const std::pair<String, AppCallback>& p){ return p.first == app.first; }) == appPool.end()) {
+              appPool.push_back(app);
+          }
+      }
+  }
+
+  // 2. Rebuild the Apps vector based on the requested order
+  std::vector<std::pair<String, AppCallback>> newApps;
+  std::set<String> hiddenApps;
+
   for (JsonObject appObj : appArray)
   {
     String appName = appObj["name"].as<String>();
     bool show = appObj["show"].as<bool>();
-    int position = appObj.containsKey("pos") ? appObj["pos"].as<int>() : Apps.size();
 
-    auto appIt = std::find_if(Apps.begin(), Apps.end(), [&appName](const std::pair<String, AppCallback> &app)
-                              { return app.first == appName; });
-
-    std::pair<String, AppCallback> nativeApp = getNativeAppByName(appName);
-
-    if (!show)
+    if (show)
     {
-      if (appIt != Apps.end())
-      {
-        Apps.erase(appIt);
+      // Find callback in pool
+      auto it = std::find_if(appPool.begin(), appPool.end(), [&](const std::pair<String, AppCallback>& p) { return p.first == appName; });
+      if (it != appPool.end()) {
+          newApps.push_back(*it);
       }
     }
     else
     {
-      if (nativeApp.second != nullptr)
-      {
-        if (appIt != Apps.end())
-        {
-          Apps.erase(appIt);
-        }
-        position = position < 0 ? 0 : position >= Apps.size() ? Apps.size()
-                                                              : position;
-        Apps.insert(Apps.begin() + position, nativeApp);
-      }
-      else
-      {
-        if (appIt != Apps.end() && appObj.containsKey("pos"))
-        {
-          std::pair<String, AppCallback> app = *appIt;
-          Apps.erase(appIt);
-          position = position < 0 ? 0 : position >= Apps.size() ? Apps.size()
-                                                                : position;
-          Apps.insert(Apps.begin() + position, app);
-        }
-      }
+      hiddenApps.insert(appName);
     }
   }
 
-  // Set the updated apps vector in the UI and save settings
+  // 3. Update the active loop
+  Apps = newApps;
   ui->setApps(Apps);
+
+  // 4. Update the persistent config (Ghost apps preservation)
+  std::vector<String> newConfig;
+  for (const auto &app : Apps)
+  {
+    newConfig.push_back(app.first);
+  }
+
+  for (const String &name : appLoopConfig)
+  {
+    bool isActive = false;
+    for (const auto &activeApp : Apps)
+    {
+      if (activeApp.first == name)
+      {
+        isActive = true;
+        break;
+      }
+    }
+    // If it's a Ghost app (not active but not explicitly hidden), keep it in config
+    if (!isActive && hiddenApps.count(name) == 0)
+    {
+      newConfig.push_back(name);
+    }
+  }
+
+  appLoopConfig = newConfig;
+
+  saveAppLoop();
   saveSettings();
   sendAppLoop();
   setAutoTransition(AUTO_TRANSITION);
@@ -1697,14 +1770,14 @@ void DisplayManager_::setMatrixLayout(int layout)
 
 String DisplayManager_::getAppsAsJson()
 {
-  DynamicJsonDocument doc(1024);
-  JsonObject appsObject = doc.to<JsonObject>();
-  for (size_t i = 0; i < Apps.size(); i++)
+  DynamicJsonDocument doc(2048);
+  JsonArray appsArray = doc.to<JsonArray>();
+  for (const auto &app : Apps)
   {
-    appsObject[Apps[i].first] = i;
+    appsArray.add(app.first);
   }
   String json;
-  serializeJson(appsObject, json);
+  serializeJson(appsArray, json);
   return json;
 }
 
@@ -2286,14 +2359,26 @@ String DisplayManager_::ledsAsJson()
 
 String DisplayManager_::getAppsWithIcon()
 {
-  DynamicJsonDocument jsonDocument(1024);
+  DynamicJsonDocument jsonDocument(4096);
   JsonArray jsonArray = jsonDocument.to<JsonArray>();
-  for (const auto &app : Apps)
+  for (const String &appName : appLoopConfig)
   {
     JsonObject appObject = jsonArray.createNestedObject();
-    appObject["name"] = app.first;
+    appObject["name"] = appName;
 
-    CustomApp *customApp = getCustomAppByName(app.first);
+    // Check if the app is currently in the active loop
+    bool active = false;
+    for (const std::pair<String, AppCallback> &app : Apps)
+    {
+      if (app.first == appName)
+      {
+        active = true;
+        break;
+      }
+    }
+    appObject["active"] = active;
+
+    CustomApp *customApp = getCustomAppByName(appName);
     if (customApp != nullptr)
     {
       appObject["icon"] = customApp->iconName;
@@ -2312,7 +2397,7 @@ CRGB DisplayManager_::getPixelColor(int16_t x, int16_t y)
 
 void DisplayManager_::reorderApps(const String &jsonString)
 {
-  StaticJsonDocument<2048> jsonDocument;
+  DynamicJsonDocument jsonDocument(4096);
   DeserializationError error = deserializeJson(jsonDocument, jsonString);
   if (error)
   {
@@ -2320,20 +2405,46 @@ void DisplayManager_::reorderApps(const String &jsonString)
   }
 
   JsonArray jsonArray = jsonDocument.as<JsonArray>();
-  std::vector<std::pair<String, AppCallback>> reorderedApps;
-  for (const String &appName : jsonArray)
-  {
-    for (const auto &app : Apps)
-    {
-      if (app.first == appName)
-      {
-        reorderedApps.push_back(app);
-        break;
+
+  // 1. Create a pool of all currently known apps (Native + Custom)
+  std::vector<std::pair<String, AppCallback>> appPool;
+  const char* nativeNames[] = {"Time", "Date", "Temperature", "Humidity", "Battery"};
+  for (const char* n : nativeNames) {
+      auto native = getNativeAppByName(n);
+      if (native.second != nullptr) appPool.push_back(native);
+  }
+  
+  for (const auto& app : Apps) {
+      bool isNative = false;
+      for (const char* n : nativeNames) { if (app.first == n) isNative = true; }
+      if (!isNative) {
+          if (std::find_if(appPool.begin(), appPool.end(), [&](const std::pair<String, AppCallback>& p){ return p.first == app.first; }) == appPool.end()) {
+              appPool.push_back(app);
+          }
       }
+  }
+
+  // 2. Rebuild the Apps vector and appLoopConfig based on requested order
+  std::vector<std::pair<String, AppCallback>> newApps;
+  std::vector<String> newConfig;
+
+  for (JsonVariant v : jsonArray)
+  {
+    String appName = v.as<String>();
+    newConfig.push_back(appName);
+
+    // Find callback in pool
+    auto it = std::find_if(appPool.begin(), appPool.end(), [&](const std::pair<String, AppCallback>& p) { return p.first == appName; });
+    if (it != appPool.end()) {
+        newApps.push_back(*it);
     }
   }
-  Apps = reorderedApps;
+
+  Apps = newApps;
+  appLoopConfig = newConfig;
+
   ui->setApps(Apps);
+  saveAppLoop();
   ui->forceResetState();
 }
 
@@ -2834,4 +2945,73 @@ void DisplayManager_::setCursor(int16_t x, int16_t y)
 void DisplayManager_::setTextColor(uint32_t color)
 {
   textColor = color;
+}
+
+void DisplayManager_::saveAppLoop()
+{
+  DynamicJsonDocument doc(4096);
+  JsonArray arr = doc.to<JsonArray>();
+
+  for (const auto &appName : appLoopConfig)
+  {
+    arr.add(appName);
+  }
+
+  File file = LittleFS.open("/APPS.json", "w");
+  if (file)
+  {
+    serializeJson(doc, file);
+    file.close();
+    if (DEBUG_MODE) DEBUG_PRINTLN(F("App loop config saved to /APPS.json"));
+  }
+}
+
+void DisplayManager_::loadAppLoop()
+{
+  if (!LittleFS.exists("/APPS.json")) {
+    appLoopConfig.clear();
+    for (const auto &app : Apps) {
+      appLoopConfig.push_back(app.first);
+    }
+    return;
+  }
+
+  File file = LittleFS.open("/APPS.json", "r");
+  DynamicJsonDocument doc(4096);
+  DeserializationError error = deserializeJson(doc, file);
+  file.close();
+
+  if (error) return;
+
+  JsonArray arr = doc.as<JsonArray>();
+  appLoopConfig.clear();
+  for (JsonVariant v : arr) {
+    appLoopConfig.push_back(v.as<String>());
+  }
+
+  std::vector<std::pair<String, AppCallback>> orderedApps;
+  std::vector<bool> appUsed(Apps.size(), false);
+
+  for (const String &appName : appLoopConfig) {
+    for (size_t i = 0; i < Apps.size(); i++) {
+      if (Apps[i].first == appName) {
+        orderedApps.push_back(Apps[i]);
+        appUsed[i] = true;
+        break;
+      }
+    }
+  }
+
+  for (size_t i = 0; i < Apps.size(); i++) {
+    if (!appUsed[i]) {
+      orderedApps.push_back(Apps[i]);
+      appLoopConfig.push_back(Apps[i].first);
+    }
+  }
+
+  if (!orderedApps.empty()) {
+    Apps = orderedApps;
+    ui->setApps(Apps);
+    if (DEBUG_MODE) DEBUG_PRINTLN(F("App loop order applied from /APPS.json"));
+  }
 }
