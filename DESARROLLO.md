@@ -236,3 +236,236 @@ git push origin main
 - Tamaño máximo paquete MQTT: 8192 bytes
 - Puerto serial: 115200 baud
 - Pin matriz LED: GPIO32 (hardcoded en DisplayManager.cpp línea 40)
+
+---
+
+# PARTE 3: FLOWS - APLICACIONES EXTERNAS
+
+## Qué son los Flows
+
+Los **Flows** son automatizaciones externas que envían contenido a AWTRIX 3 mediante MQTT o HTTP.
+No corren en el ESP32, sino en sistemas externos como Node-RED, Home Assistant, etc.
+
+```
+[Fuente de datos]  →  [Node-RED/HA]  →  [MQTT/HTTP]  →  [AWTRIX 3]
+   (API externa)       (procesa)        (envía JSON)    (muestra en matriz)
+```
+
+## Hub de Flows comunitarios
+
+**https://flows.blueforcer.de/**
+
+- Descargar flows listos para usar
+- Subir tus propios flows
+- Compartir iconos incluidos
+- No requiere login
+
+## Plataformas soportadas
+
+| Plataforma | Descripción | Instalación |
+|------------|-------------|-------------|
+| **Node-RED** | Visual, ideal para principiantes | `npm install -g node-red` |
+| **Home Assistant** | Blueprints y automations | Addon de HA |
+| **N8N** | Alternativa a Node-RED | Docker o npm |
+| **ioBroker** | Smarthome | Instalador propio |
+| **FHEM** | Perl-based | apt install |
+| **Domoticz** | Domótica ligera | apt install |
+
+## API para Custom Apps
+
+### Enviar texto via HTTP
+
+```bash
+# Crear/actualizar una app personalizada
+curl -X POST http://[IP-AWTRIX]/api/custom?name=miapp \
+  -H "Content-Type: application/json" \
+  -d '{"text":"Hola mundo", "icon": 1234, "color":"#FF0000"}'
+
+# Eliminar una app
+curl -X POST http://[IP-AWTRIX]/api/custom?name=miapp \
+  -d ''
+```
+
+### Enviar texto via MQTT
+
+```
+Topic: awtrix/custom/miapp
+Payload: {"text":"Hola mundo", "icon": 1234, "color":"#FF0000"}
+```
+
+### Enviar notificación (temporal, no se guarda en loop)
+
+```bash
+# HTTP
+curl -X POST http://[IP-AWTRIX]/api/notify \
+  -H "Content-Type: application/json" \
+  -d '{"text":"Alerta!", "icon": 555, "duration": 10}'
+
+# MQTT
+Topic: awtrix/notify
+Payload: {"text":"Alerta!", "icon": 555, "duration": 10}
+```
+
+## Propiedades JSON disponibles
+
+| Propiedad | Tipo | Descripción | Ejemplo |
+|-----------|------|-------------|---------|
+| `text` | string | Texto a mostrar | `"Hola"` |
+| `icon` | number | ID del icono (de LaMetric o subido) | `1234` |
+| `color` | string/array | Color del texto | `"#FF0000"` o `[255,0,0]` |
+| `background` | string/array | Color de fondo | `"#000000"` |
+| `duration` | number | Duración en segundos | `10` |
+| `scroll` | bool | Activar scroll | `true` |
+| `scrollSpeed` | number | Velocidad de scroll (ms) | `100` |
+| `effect` | string | Efecto de fondo | `"Fade"` |
+| `progress` | number | Barra de progreso (0-100) | `75` |
+| `progressC` | string | Color de la barra | `"#00FF00"` |
+| `repeat` | number | Repeticiones (notificaciones) | `3` |
+| `sound` | string | Sonido a reproducir | `"alarm"` |
+| `rtttl` | string | Melodía RTTTL | `"melody:d=4,o=5..."` |
+| `pushIcon` | number | Animación del icono (0,1,2) | `1` |
+| `lifetime` | number | Tiempo de vida en segundos | `3600` |
+| `noScroll` | bool | Desactivar scroll | `true` |
+| `center` | bool | Centrar texto | `true` |
+
+## Ejemplo: Flow Node-RED para YouTube
+
+Este flow obtiene suscriptores de YouTube y los muestra en AWTRIX:
+
+### Estructura del flow
+
+```
+[Inject cada 1h] → [Function: API key] → [HTTP Request] → [Function: Parser] → [MQTT Out]
+```
+
+### Código del nodo "Data" (Function)
+
+```javascript
+msg.payload = {
+  "id": "TU_CHANNEL_ID",
+  "key": "TU_API_KEY",
+  "part": "statistics"
+};
+return msg;
+```
+
+### Código del nodo "Parser" (Function)
+
+```javascript
+var json = msg.payload;
+var subscribers = json.items[0].statistics.subscriberCount;
+
+msg.payload = {
+  "text": subscribers,
+  "icon": 5029
+};
+return msg;
+```
+
+### Configuración MQTT Out
+
+```
+Topic: awtrix/custom/youtube
+Broker: localhost:1883
+```
+
+## Instalar Node-RED
+
+### En Windows
+
+```bash
+# Instalar Node.js primero desde https://nodejs.org
+
+# Instalar Node-RED
+npm install -g node-red
+
+# Ejecutar
+node-red
+
+# Abrir en navegador
+http://localhost:1880
+```
+
+### En Raspberry Pi
+
+```bash
+# Script de instalación oficial
+bash <(curl -sL https://raw.githubusercontent.com/node-red/linux-installers/master/deb/update-nodejs-and-nodered)
+
+# Habilitar como servicio
+sudo systemctl enable nodered
+sudo systemctl start nodered
+
+# Abrir en navegador
+http://[IP-RASPBERRY]:1880
+```
+
+### Nodos útiles para instalar
+
+En Node-RED, ve a Menu → Manage Palette → Install:
+
+| Nodo | Para qué |
+|------|----------|
+| `node-red-contrib-home-assistant` | Integrar Home Assistant |
+| `node-red-dashboard` | Crear dashboards web |
+| `node-red-contrib-influxdb` | Base de datos de métricas |
+| `node-red-contrib-telegrambot` | Enviar/recibir Telegram |
+
+## Flows populares disponibles
+
+| Flow | Descripción | Plataforma |
+|------|-------------|------------|
+| YouTube Subscribers | Muestra suscriptores | Node-RED |
+| Instagram Followers | Seguidores de IG | Node-RED |
+| OpenWeather | Clima actual y pronóstico | Node-RED / HA |
+| SpeedTest | Velocidad de internet | Node-RED |
+| WooCommerce | Notifica pedidos | N8N |
+| Spotify Now Playing | Canción actual | Home Assistant |
+| Crypto Prices | Bitcoin, ETH, etc. | Node-RED |
+| Calendar Events | Próximos eventos | Home Assistant |
+| Printer Status | Estado impresora 3D | Node-RED |
+| Energy Monitor | Consumo eléctrico | Home Assistant |
+
+## Otros endpoints útiles de la API
+
+| Endpoint | Método | Descripción |
+|----------|--------|-------------|
+| `/api/stats` | GET | Estado del dispositivo |
+| `/api/screen` | GET | Captura de pantalla actual |
+| `/api/power` | POST | Encender/apagar matriz |
+| `/api/indicator1` | POST | LED indicador esquina |
+| `/api/effects` | GET | Lista de efectos |
+| `/api/transitions` | GET | Lista de transiciones |
+| `/api/loop` | GET | Apps en rotación |
+| `/api/reboot` | POST | Reiniciar dispositivo |
+| `/api/sound` | POST | Reproducir sonido |
+| `/api/moodlight` | POST | Luz ambiente |
+
+## Ejemplo: Indicadores de color
+
+```bash
+# Indicador rojo parpadeante (esquina superior derecha)
+curl -X POST http://[IP]/api/indicator1 \
+  -d '{"color":"#FF0000", "blink": 500}'
+
+# Indicador verde fijo (lado derecho)
+curl -X POST http://[IP]/api/indicator2 \
+  -d '{"color":[0,255,0]}'
+
+# Apagar indicador
+curl -X POST http://[IP]/api/indicator1 \
+  -d '{"color":"0"}'
+```
+
+## Ejemplo: Control de energía
+
+```bash
+# Apagar matriz (pantalla negra, ESP32 sigue funcionando)
+curl -X POST http://[IP]/api/power -d '{"power": false}'
+
+# Encender matriz
+curl -X POST http://[IP]/api/power -d '{"power": true}'
+
+# Modo sleep por 1 hora (3600 segundos)
+curl -X POST http://[IP]/api/sleep -d '{"sleep": 3600}'
+```
