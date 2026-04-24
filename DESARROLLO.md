@@ -1,7 +1,7 @@
 # AWTRIX 3 - Guía de Instalación y Desarrollo
 
 ## Repositorio
-- **Tu Fork:** https://github.com/XE1E/awtrix3
+- **Tu Fork:** https://github.com/XE1E/awtrix3-XE1E
 - **Original:** https://github.com/Blueforcer/awtrix3
 - **Documentación:** https://blueforcer.github.io/awtrix3/
 
