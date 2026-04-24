@@ -3,12 +3,28 @@
 # Script de prueba para ICA/AQI en AWTRIX 3
 # ==============================================
 
-# ========== CONFIGURAR AQUÍ ==========
-LAT="19.4326"           # Tu latitud
-LON="-99.1332"          # Tu longitud
-API_KEY="e6d10b15cef452d45dd44786a8fd4dc7"  # Tu API key OpenWeather
-AWTRIX_IP="192.168.1.108"  # IP de tu AWTRIX 3
+# ========== CONFIGURACIÓN ==========
+# Usar variables de entorno o valores por defecto
+
+LAT="${AWTRIX_LAT:-19.4326}"
+LON="${AWTRIX_LON:--99.1332}"
+API_KEY="${OPENWEATHER_API_KEY:-}"
+AWTRIX_IP="${AWTRIX_IP:-192.168.1.108}"
+
 # ======================================
+
+if [ -z "$API_KEY" ]; then
+    echo "ERROR: Falta la variable de entorno OPENWEATHER_API_KEY"
+    echo ""
+    echo "Configurar con:"
+    echo '  export OPENWEATHER_API_KEY="tu_api_key"'
+    echo '  export AWTRIX_IP="192.168.1.100"'
+    echo '  export AWTRIX_LAT="19.4326"'
+    echo '  export AWTRIX_LON="-99.1332"'
+    echo ""
+    echo "O agregar a ~/.bashrc para que sea permanente"
+    exit 1
+fi
 
 echo "Obteniendo datos de calidad del aire..."
 echo "Ubicación: $LAT, $LON"
@@ -34,7 +50,6 @@ if command -v jq &> /dev/null; then
     echo ""
 
     # Calcular AQI US EPA basado en PM2.5
-    # Simplificado para bash
     if (( $(echo "$PM25 <= 12" | bc -l) )); then
         AQI=50
         COLOR="#00E400"

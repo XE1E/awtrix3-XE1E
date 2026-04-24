@@ -14,20 +14,55 @@ Muestra el Índice de Calidad del Aire basado en datos de OpenWeather.
 | `test-aqi.ps1` | Script PowerShell (Windows) |
 | `test-aqi.sh` | Script Bash (Linux/Mac) |
 
-### Configuración
+### Configuración con Variables de Entorno
 
-Edita estos valores en el archivo que uses:
+Los scripts usan variables de entorno para mayor seguridad (no exponer API keys en código).
 
+#### Windows (PowerShell)
+
+```powershell
+# Configurar para la sesión actual
+$env:OPENWEATHER_API_KEY = "tu_api_key"
+$env:AWTRIX_IP = "192.168.1.108"
+$env:AWTRIX_LAT = "19.4326"
+$env:AWTRIX_LON = "-99.1332"
+
+# Configurar permanentemente (ejecutar como Admin)
+[System.Environment]::SetEnvironmentVariable("OPENWEATHER_API_KEY", "tu_api_key", "User")
+[System.Environment]::SetEnvironmentVariable("AWTRIX_IP", "192.168.1.108", "User")
+[System.Environment]::SetEnvironmentVariable("AWTRIX_LAT", "19.4326", "User")
+[System.Environment]::SetEnvironmentVariable("AWTRIX_LON", "-99.1332", "User")
 ```
-LAT = "19.4326"              # Tu latitud
-LON = "-99.1332"             # Tu longitud
-API_KEY = "tu_api_key"       # OpenWeather API key
-AWTRIX_IP = "192.168.1.108"  # IP de tu AWTRIX 3
+
+#### Linux / Raspberry Pi (Bash)
+
+```bash
+# Configurar para la sesión actual
+export OPENWEATHER_API_KEY="tu_api_key"
+export AWTRIX_IP="192.168.1.108"
+export AWTRIX_LAT="19.4326"
+export AWTRIX_LON="-99.1332"
+
+# Configurar permanentemente (agregar a ~/.bashrc)
+echo 'export OPENWEATHER_API_KEY="tu_api_key"' >> ~/.bashrc
+echo 'export AWTRIX_IP="192.168.1.108"' >> ~/.bashrc
+echo 'export AWTRIX_LAT="19.4326"' >> ~/.bashrc
+echo 'export AWTRIX_LON="-99.1332"' >> ~/.bashrc
+source ~/.bashrc
 ```
+
+#### Variables disponibles
+
+| Variable | Descripción | Ejemplo |
+|----------|-------------|---------|
+| `OPENWEATHER_API_KEY` | API key de OpenWeather (requerida) | `e6d10b15...` |
+| `AWTRIX_IP` | IP de tu AWTRIX 3 | `192.168.1.108` |
+| `AWTRIX_LAT` | Latitud de tu ubicación | `19.4326` |
+| `AWTRIX_LON` | Longitud de tu ubicación | `-99.1332` |
 
 **Obtener coordenadas:** Abre Google Maps, haz clic derecho en tu ubicación, copia las coordenadas.
 
-**API Key:** Usa la misma de OpenWeather que ya tienes, o crea una gratis en https://openweathermap.org/api
+**API Key:** Crea una gratis en https://openweathermap.org/api
 
 ### Uso
 

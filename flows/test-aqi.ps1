@@ -3,12 +3,28 @@
 # Para Windows PowerShell
 # ==============================================
 
-# ========== CONFIGURAR AQUÍ ==========
-$LAT = "19.4326"           # Tu latitud
-$LON = "-99.1332"          # Tu longitud
-$API_KEY = "e6d10b15cef452d45dd44786a8fd4dc7"  # Tu API key OpenWeather
-$AWTRIX_IP = "192.168.1.108"  # IP de tu AWTRIX 3
+# ========== CONFIGURACIÓN ==========
+# Usar variables de entorno o valores por defecto
+
+$LAT = if ($env:AWTRIX_LAT) { $env:AWTRIX_LAT } else { "19.4326" }
+$LON = if ($env:AWTRIX_LON) { $env:AWTRIX_LON } else { "-99.1332" }
+$API_KEY = if ($env:OPENWEATHER_API_KEY) { $env:OPENWEATHER_API_KEY } else { $null }
+$AWTRIX_IP = if ($env:AWTRIX_IP) { $env:AWTRIX_IP } else { "192.168.1.108" }
+
 # ======================================
+
+if (-not $API_KEY) {
+    Write-Host "ERROR: Falta la variable de entorno OPENWEATHER_API_KEY" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "Configurar con:" -ForegroundColor Yellow
+    Write-Host '  $env:OPENWEATHER_API_KEY = "tu_api_key"'
+    Write-Host '  $env:AWTRIX_IP = "192.168.1.100"'
+    Write-Host '  $env:AWTRIX_LAT = "19.4326"'
+    Write-Host '  $env:AWTRIX_LON = "-99.1332"'
+    Write-Host ""
+    Write-Host "O configurar permanentemente en Variables de Entorno del Sistema"
+    exit 1
+}
 
 Write-Host "Obteniendo datos de calidad del aire..." -ForegroundColor Cyan
 Write-Host "Ubicacion: $LAT, $LON"
