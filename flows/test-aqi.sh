@@ -6,7 +6,7 @@
 # ========== CONFIGURAR AQUÍ ==========
 LAT="19.4326"           # Tu latitud
 LON="-99.1332"          # Tu longitud
-API_KEY="7f0640a1022289217384c106cdaae7c1"  # Tu API key OpenWeather
+API_KEY="e6d10b15cef452d45dd44786a8fd4dc7"  # Tu API key OpenWeather
 AWTRIX_IP="192.168.1.108"  # IP de tu AWTRIX 3
 # ======================================
 

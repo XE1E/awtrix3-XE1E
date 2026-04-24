@@ -48,7 +48,7 @@
     "z": "flow_main",
     "g": "aqi_flow_group",
     "name": "Config",
-    "func": "// ========== CONFIGURAR AQUÍ ==========\n\n// Tu ubicación (obtener de Google Maps)\nvar lat = 19.4326;   // Latitud (ejemplo: CDMX)\nvar lon = -99.1332;  // Longitud\n\n// Tu API key de OpenWeather\nvar apiKey = \"7f0640a1022289217384c106cdaae7c1\";\n\n// IP de tu AWTRIX 3\nvar awtrixIP = \"192.168.1.108\";\n\n// ======================================\n\nmsg.lat = lat;\nmsg.lon = lon;\nmsg.apiKey = apiKey;\nmsg.awtrixIP = awtrixIP;\n\nmsg.url = `http://api.openweathermap.org/data/2.5/air_pollution?lat=${lat}&lon=${lon}&appid=${apiKey}`;\n\nreturn msg;",
+    "func": "// ========== CONFIGURAR AQUÍ ==========\n\n// Tu ubicación (obtener de Google Maps)\nvar lat = 19.4326;   // Latitud (ejemplo: CDMX)\nvar lon = -99.1332;  // Longitud\n\n// Tu API key de OpenWeather\nvar apiKey = \"e6d10b15cef452d45dd44786a8fd4dc7\";\n\n// IP de tu AWTRIX 3\nvar awtrixIP = \"192.168.1.108\";\n\n// ======================================\n\nmsg.lat = lat;\nmsg.lon = lon;\nmsg.apiKey = apiKey;\nmsg.awtrixIP = awtrixIP;\n\nmsg.url = `http://api.openweathermap.org/data/2.5/air_pollution?lat=${lat}&lon=${lon}&appid=${apiKey}`;\n\nreturn msg;",
     "outputs": 1,
     "timeout": "",
     "noerr": 0,
